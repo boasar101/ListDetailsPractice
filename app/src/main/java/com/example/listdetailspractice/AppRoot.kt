@@ -1,8 +1,8 @@
+package com.example.listdetailspractice
 
-package com.example.listdetailspractice.ui
-
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
@@ -15,9 +15,8 @@ import androidx.navigation.navArgument
 import com.example.listdetailspractice.ui.screens.PlaceholderScreen
 import com.example.listdetailspractice.ui.screens.RepoDetailsScreen
 import com.example.listdetailspractice.ui.screens.ReposListScreen
+import com.example.listdetailspractice.ui.vm.ReposUiState
 import com.example.listdetailspractice.ui.vm.ReposViewModel
-import androidx.compose.foundation.layout.padding
-
 
 sealed class BottomDest(val route: String, val label: String) {
     data object Repos : BottomDest("repos_list", "Repos")
@@ -28,11 +27,6 @@ sealed class BottomDest(val route: String, val label: String) {
 @Composable
 fun AppRoot() {
     val navController = rememberNavController()
-    val bottomItems = listOf(
-        BottomDest.Repos,
-        BottomDest.Favorites,
-        BottomDest.Settings
-    )
 
     Scaffold(
         bottomBar = {
@@ -40,9 +34,9 @@ fun AppRoot() {
                 val currentRoute =
                     navController.currentBackStackEntryAsState().value?.destination?.route
 
-                bottomItems.forEach { dest ->
+                listOf(BottomDest.Repos, BottomDest.Favorites, BottomDest.Settings).forEach { dest ->
                     val icon = when (dest) {
-                        BottomDest.Repos -> Icons.Default.List
+                        BottomDest.Repos -> Icons.AutoMirrored.Filled.List
                         BottomDest.Favorites -> Icons.Default.Star
                         BottomDest.Settings -> Icons.Default.Settings
                     }
@@ -68,13 +62,17 @@ fun AppRoot() {
             startDestination = BottomDest.Repos.route,
             modifier = Modifier.padding(padding)
         ) {
-            composable("repos_list") {
+
+            composable(BottomDest.Repos.route) {
                 val vm: ReposViewModel = viewModel()
+
+                // غيّر owner هنا لأي username انت عايزه
+                LaunchedEffect(Unit) { vm.load(owner = "google") }
+
                 ReposListScreen(
-                    vm = vm,
-                    onRepoClick = { id ->
-                        navController.navigate("repo_details/$id")
-                    }
+                    state = vm.state.collectAsState().value,
+                    onRetry = { vm.load(owner = "google") },
+                    onRepoClick = { id -> navController.navigate("repo_details/$id") }
                 )
             }
 
@@ -84,6 +82,7 @@ fun AppRoot() {
             ) { entry ->
                 val vm: ReposViewModel = viewModel()
                 val id = entry.arguments?.getLong("id") ?: -1L
+
                 RepoDetailsScreen(
                     repo = vm.getById(id),
                     onBack = { navController.popBackStack() }
