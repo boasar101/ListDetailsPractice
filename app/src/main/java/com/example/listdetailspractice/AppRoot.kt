@@ -1,23 +1,23 @@
+package com.example.listdetailspractice
 
-package com.example.listdetailspractice.ui
-
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
-import com.example.listdetailspractice.ui.screens.PlaceholderScreen
+import com.example.listdetailspractice.ui.screens.FavoritesScreen
 import com.example.listdetailspractice.ui.screens.RepoDetailsScreen
 import com.example.listdetailspractice.ui.screens.ReposListScreen
-import com.example.listdetailspractice.ui.vm.ReposViewModel
-import androidx.compose.foundation.layout.padding
-
+import com.example.listdetailspractice.ui.screens.SettingsRoute
+import com.example.listdetailspractice.ui.vm.*
 
 sealed class BottomDest(val route: String, val label: String) {
     data object Repos : BottomDest("repos_list", "Repos")
@@ -28,21 +28,29 @@ sealed class BottomDest(val route: String, val label: String) {
 @Composable
 fun AppRoot() {
     val navController = rememberNavController()
-    val bottomItems = listOf(
-        BottomDest.Repos,
-        BottomDest.Favorites,
-        BottomDest.Settings
-    )
+
+    val ctx = LocalContext.current
+    val container = remember {
+        AppContainer(ctx.applicationContext)
+    }
+
+
+    val settingsVm: SettingsViewModel = viewModel(factory = SettingsViewModelFactory(ctx))
+    val filters = settingsVm.settings.collectAsState().value
+
+    val favoritesVm: FavoritesViewModel =
+        viewModel(factory = FavoritesViewModelFactory(container.favoritesRepository))
+
+    val favoritesIds = favoritesVm.favorites.collectAsState().value.map { it.id }.toSet()
 
     Scaffold(
         bottomBar = {
             NavigationBar {
-                val currentRoute =
-                    navController.currentBackStackEntryAsState().value?.destination?.route
+                val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
 
-                bottomItems.forEach { dest ->
+                listOf(BottomDest.Repos, BottomDest.Favorites, BottomDest.Settings).forEach { dest ->
                     val icon = when (dest) {
-                        BottomDest.Repos -> Icons.Default.List
+                        BottomDest.Repos -> Icons.AutoMirrored.Filled.List
                         BottomDest.Favorites -> Icons.Default.Star
                         BottomDest.Settings -> Icons.Default.Settings
                     }
@@ -63,18 +71,26 @@ fun AppRoot() {
             }
         }
     ) { padding ->
+
         NavHost(
             navController = navController,
             startDestination = BottomDest.Repos.route,
             modifier = Modifier.padding(padding)
         ) {
-            composable("repos_list") {
-                val vm: ReposViewModel = viewModel()
+
+            composable(BottomDest.Repos.route) {
+                val reposVm: ReposViewModel = viewModel()
+
+                LaunchedEffect(filters.owner) {
+                    reposVm.load(owner = filters.owner)
+                }
+
                 ReposListScreen(
-                    vm = vm,
-                    onRepoClick = { id ->
-                        navController.navigate("repo_details/$id")
-                    }
+                    state = reposVm.state.collectAsState().value,
+                    onRetry = { reposVm.load(owner = filters.owner) },
+                    onRepoClick = { id -> navController.navigate("repo_details/$id") },
+                    favoritesIds = favoritesIds,
+                    onToggleFavorite = { repoUi -> favoritesVm.toggleFavorite(repoUi) }
                 )
             }
 
@@ -82,16 +98,28 @@ fun AppRoot() {
                 "repo_details/{id}",
                 arguments = listOf(navArgument("id") { type = NavType.LongType })
             ) { entry ->
-                val vm: ReposViewModel = viewModel()
+                val reposVm: ReposViewModel = viewModel()
                 val id = entry.arguments?.getLong("id") ?: -1L
+
                 RepoDetailsScreen(
-                    repo = vm.getById(id),
+                    id = id,
+                    reposVm = reposVm,
+                    favoritesVm = favoritesVm,
                     onBack = { navController.popBackStack() }
                 )
             }
 
-            composable("favorites") { PlaceholderScreen("Favorites") }
-            composable("settings") { PlaceholderScreen("Settings") }
+            composable(BottomDest.Favorites.route) {
+                FavoritesScreen(
+                    onRepoClick = { id -> navController.navigate("repo_details/$id") }
+                )
+            }
+
+            composable(BottomDest.Settings.route) {
+                SettingsRoute(
+                    onApplied = { navController.navigate(BottomDest.Repos.route) }
+                )
+            }
         }
     }
 }

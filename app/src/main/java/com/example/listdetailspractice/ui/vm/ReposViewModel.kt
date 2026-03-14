@@ -1,14 +1,33 @@
 package com.example.listdetailspractice.ui.vm
 
 import androidx.lifecycle.ViewModel
-import com.example.listdetailspractice.ui.mock.RepoMock
-import com.example.listdetailspractice.ui.model.RepoUi
+import androidx.lifecycle.viewModelScope
+import com.example.listdetailspractice.data.repository.ReposRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 
-class ReposViewModel : ViewModel() {
-    private val _repos = MutableStateFlow(RepoMock.items)
-    val repos: StateFlow<List<RepoUi>> = _repos
+class ReposViewModel(
+    private val repository: ReposRepository = ReposRepository()
+) : ViewModel() {
 
-    fun getById(id: Long): RepoUi? = _repos.value.firstOrNull { it.id == id }
+    private val _state = MutableStateFlow<ReposUiState>(ReposUiState.Loading)
+    val state: StateFlow<ReposUiState> = _state
+
+    fun load(owner: String) {
+        viewModelScope.launch {
+            _state.value = ReposUiState.Loading
+            try {
+                val repos = repository.loadRepos(owner)
+                _state.value = ReposUiState.Content(repos)
+            } catch (e: Exception) {
+                _state.value = ReposUiState.Error(e.message ?: "Unknown error")
+            }
+        }
+    }
+
+    fun getById(id: Long) =
+        (state.value as? ReposUiState.Content)
+            ?.items
+            ?.firstOrNull { it.id == id }
 }

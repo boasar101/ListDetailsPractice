@@ -1,43 +1,52 @@
 package com.example.listdetailspractice.ui.screens
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Card
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.listdetailspractice.ui.model.RepoUi
-import com.example.listdetailspractice.ui.vm.ReposViewModel
+import com.example.listdetailspractice.ui.vm.ReposUiState
 
 @Composable
 fun ReposListScreen(
-    vm: ReposViewModel,
-    onRepoClick: (Long) -> Unit
+    state: ReposUiState,
+    onRetry: () -> Unit,
+    onRepoClick: (Long) -> Unit,
+    favoritesIds: Set<Long>,
+    onToggleFavorite: (RepoUi) -> Unit
 ) {
-    val repos by vm.repos.collectAsState()
+    when (state) {
+        is ReposUiState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        items(repos, key = { it.id }) { repo ->
-            RepoItem(repo = repo, onClick = { onRepoClick(repo.id) })
+        is ReposUiState.Error -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(state.message)
+                Spacer(Modifier.height(12.dp))
+                Button(onClick = onRetry) { Text("Retry") }
+            }
+        }
+
+        is ReposUiState.Content -> LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            items(state.items, key = { it.id }) { repo ->
+                RepoItem(
+                    repo = repo,
+                    isFavorite = favoritesIds.contains(repo.id),
+                    onClick = { onRepoClick(repo.id) },
+                    onToggleFavorite = { onToggleFavorite(repo) }
+                )
+            }
         }
     }
 }
@@ -45,22 +54,31 @@ fun ReposListScreen(
 @Composable
 private fun RepoItem(
     repo: RepoUi,
-    onClick: () -> Unit
+    isFavorite: Boolean,
+    onClick: () -> Unit,
+    onToggleFavorite: () -> Unit
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
     ) {
         Column(Modifier.padding(14.dp)) {
-            Row {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+
                 Text(
                     text = repo.name,
                     style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
+
+                TextButton(onClick = onToggleFavorite) {
+                    Text(if (isFavorite) "★" else "☆")
+                }
             }
+
             Spacer(Modifier.height(6.dp))
+
             Text(
                 text = repo.description,
                 maxLines = 2,
